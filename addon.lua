@@ -5,143 +5,173 @@ local http = require("socket.http")
 local encoding = require 'encoding'
 local requests = require 'requests'
 
--- Настраиваем кодировки
+-- РќР°СЃС‚СЂР°РёРІР°РµРј РєРѕРґРёСЂРѕРІРєРё
 encoding.default = 'CP1251'
 local u8 = encoding.UTF8
 
 local wm = require 'windows.message'
 local new, str, sizeof = imgui.new, ffi.string, ffi.sizeof
 
--- Глобальные переменные
-local renderWindow = new.bool(false) -- Видимость окна
-local updateAvailable = new.bool(false) -- Есть ли обновление
-local updateText = new.char[256]() -- Текст статуса обновления
-local sizeX, sizeY = getScreenResolution() -- Разрешение экрана
+-- Р“Р»РѕР±Р°Р»СЊРЅС‹Рµ РїРµСЂРµРјРµРЅРЅС‹Рµ
+local renderWindow = new.bool(false) -- Р’РёРґРёРјРѕСЃС‚СЊ РѕРєРЅР°
+local updateAvailable = new.bool(false) -- Р•СЃС‚СЊ Р»Рё РѕР±РЅРѕРІР»РµРЅРёРµ
+local updateText = new.char[256]() -- РўРµРєСЃС‚ СЃС‚Р°С‚СѓСЃР° РѕР±РЅРѕРІР»РµРЅРёСЏ
+local sizeX, sizeY = getScreenResolution() -- Р Р°Р·СЂРµС€РµРЅРёРµ СЌРєСЂР°РЅР°
 
--- Текущая версия скрипта
-local CURRENT_VERSION = "1.6e"
--- URL для проверки версии
+-- РўРµРєСѓС‰Р°СЏ РІРµСЂСЃРёСЏ СЃРєСЂРёРїС‚Р°
+local CURRENT_VERSION = "1.6"
+-- URL РґР»СЏ РїСЂРѕРІРµСЂРєРё РІРµСЂСЃРёРё
 local VERSION_URL = "https://addon.sendmessage.online/version.php"
 local DOWNLOAD_URL = "https://addon.sendmessage.online/addon-new.lua"
 
--- Настройка imgui
+-- РќР°СЃС‚СЂРѕР№РєР° imgui
 imgui.OnInitialize(function()
-    imgui.GetIO().IniFilename = nil -- Отключаем сохранение конфигурации в файл
+    imgui.GetIO().IniFilename = nil -- РћС‚РєР»СЋС‡Р°РµРј СЃРѕС…СЂР°РЅРµРЅРёРµ РєРѕРЅС„РёРіСѓСЂР°С†РёРё РІ С„Р°Р№Р»
 end)
 
--- Функция безопасной установки текста
+-- Р¤СѓРЅРєС†РёСЏ Р±РµР·РѕРїР°СЃРЅРѕР№ СѓСЃС‚Р°РЅРѕРІРєРё С‚РµРєСЃС‚Р°
 local function safeStrCopy(destination, text)
-    local encodedText = u8(text) -- Преобразуем текст в UTF-8
+    local encodedText = u8(text) -- РџСЂРµРѕР±СЂР°Р·СѓРµРј С‚РµРєСЃС‚ РІ UTF-8
     ffi.copy(destination, encodedText, math.min(#encodedText, sizeof(destination) - 1))
-    destination[#encodedText] = 0 -- Завершаем строку нулевым символом
+    destination[#encodedText] = 0 -- Р—Р°РІРµСЂС€Р°РµРј СЃС‚СЂРѕРєСѓ РЅСѓР»РµРІС‹Рј СЃРёРјРІРѕР»РѕРј
 end
 
--- Функция проверки версии
+-- Р¤СѓРЅРєС†РёСЏ РїСЂРѕРІРµСЂРєРё РІРµСЂСЃРёРё
 local function checkVersion()
     local response = requests.get(VERSION_URL, {
         headers = { ["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Gecko/20100101 Firefox/118.0" }
     })
 
     if response.status_code == 200 then
-        local data = response.json() -- Разбираем JSON
+        local data = response.json() -- Р Р°Р·Р±РёСЂР°РµРј JSON
 
         if data and data.latest_version then
             if data.latest_version > CURRENT_VERSION then
                 updateAvailable[0] = true
-                safeStrCopy(updateText, "Доступно обновление: " .. data.latest_version)
+                safeStrCopy(updateText, "Р”РѕСЃС‚СѓРїРЅРѕ РѕР±РЅРѕРІР»РµРЅРёРµ: " .. data.latest_version)
             else
                 updateAvailable[0] = false
-                safeStrCopy(updateText, "Скрипт обновлен. Версия: " .. CURRENT_VERSION)
+                safeStrCopy(updateText, "РЎРєСЂРёРїС‚ РѕР±РЅРѕРІР»РµРЅ. Р’РµСЂСЃРёСЏ: " .. CURRENT_VERSION)
             end
         else
-            safeStrCopy(updateText, "Ошибка: Некорректный ответ от сервера.")
+            safeStrCopy(updateText, "РћС€РёР±РєР°: РќРµРєРѕСЂСЂРµРєС‚РЅС‹Р№ РѕС‚РІРµС‚ РѕС‚ СЃРµСЂРІРµСЂР°.")
         end
     else
-        safeStrCopy(updateText, "Ошибка: Не удалось получить данные. Код: " .. response.status_code)
+        safeStrCopy(updateText, "РћС€РёР±РєР°: РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ РґР°РЅРЅС‹Рµ. РљРѕРґ: " .. response.status_code)
     end
 end
 
--- Функция обновления
+-- Р¤СѓРЅРєС†РёСЏ РѕР±РЅРѕРІР»РµРЅРёСЏ
 local function downloadUpdate()
-    sampAddChatMessage(u8:decode("Скачиваю новую версию..."), 0xFFFF00)
-    local response, status = http.request(DOWNLOAD_URL)
+    local newFilePath = getWorkingDirectory() .. "/moonloader/scripts/new-addon.lua"
+    local downloadUrl = "https://addon.sendmessage.online/scripts/addon.lua"
+    local maxRedirects = 5 -- Р›РёРјРёС‚ РЅР° РїРµСЂРµРЅР°РїСЂР°РІР»РµРЅРёСЏ
+
+    sampAddChatMessage(u8:decode("РќР°С‡РёРЅР°СЋ Р·Р°РіСЂСѓР·РєСѓ РЅРѕРІРѕР№ РІРµСЂСЃРёРё..."), 0xFFFF00)
+
+    local function fetch(url, attempt)
+        attempt = attempt or 1
+        if attempt > maxRedirects then
+            return nil, "РџСЂРµРІС‹С€РµРЅРѕ РєРѕР»РёС‡РµСЃС‚РІРѕ РїРµСЂРµРЅР°РїСЂР°РІР»РµРЅРёР№"
+        end
+
+        local response, status, headers = http.request {
+            url = url,
+            method = "GET",
+            headers = {
+                ["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Gecko/20100101 Firefox/118.0"
+            }
+        }
+
+        if status == 301 or status == 302 then
+            local redirectUrl = headers.location
+            if redirectUrl then
+                return fetch(redirectUrl, attempt + 1)
+            else
+                return nil, "РћС€РёР±РєР° РїРµСЂРµРЅР°РїСЂР°РІР»РµРЅРёСЏ: РѕС‚СЃСѓС‚СЃС‚РІСѓРµС‚ Р·Р°РіРѕР»РѕРІРѕРє Location"
+            end
+        end
+
+        return response, status
+    end
+
+    -- Р’С‹РїРѕР»РЅСЏРµРј Р·Р°РіСЂСѓР·РєСѓ
+    local response, status = fetch(downloadUrl)
+
     if response and status == 200 then
-        local newFilePath = getWorkingDirectory() .. "/moonloader/scripts/addon-new.lua"
-        local oldFilePath = getWorkingDirectory() .. "/moonloader/scripts/addon.lua"
         local file = io.open(newFilePath, "wb")
         if file then
             file:write(response)
             file:close()
-
-            -- Проверяем текущую версию и переименовываем файл
-            sampAddChatMessage(u8:decode("Проверка и замена старой версии..."), 0xFFFF00)
-            if CURRENT_VERSION < data.latest_version then
-                os.remove(oldFilePath)
-                os.rename(newFilePath, oldFilePath)
-                sampAddChatMessage(u8:decode("Обновление успешно установлено! Перезагрузите MoonLoader."), 0x00FF00)
-            else
-                sampAddChatMessage(u8:decode("Обновление не требуется. Удаляю загруженный файл."), 0xFFFF00)
-                os.remove(newFilePath)
-            end
+            sampAddChatMessage(u8:decode("Р—Р°РіСЂСѓР·РєР° Р·Р°РІРµСЂС€РµРЅР°! РЎРєСЂРёРїС‚ СЃРѕС…СЂР°РЅС‘РЅ РєР°Рє new-addon.lua."), 0x00FF00)
+            sampAddChatMessage(u8:decode("РџСѓС‚СЊ: " .. newFilePath), 0x00FF00)
         else
-            sampAddChatMessage(u8:decode("Ошибка сохранения файла. Проверьте права доступа."), 0xFF0000)
+            sampAddChatMessage(u8:decode("РћС€РёР±РєР° СЃРѕС…СЂР°РЅРµРЅРёСЏ С„Р°Р№Р»Р°. РџСЂРѕРІРµСЂСЊС‚Рµ РїСЂР°РІР° РґРѕСЃС‚СѓРїР°!"), 0xFF0000)
         end
     else
-        sampAddChatMessage(u8:decode("Ошибка загрузки файла. Статус: " .. tostring(status)), 0xFF0000)
+        sampAddChatMessage(u8:decode("РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё С„Р°Р№Р»Р°. РљРѕРґ: " .. tostring(status)), 0xFF0000)
+        if status == 301 or status == 302 then
+            sampAddChatMessage(u8:decode("РЎРµСЂРІРµСЂ РІРµСЂРЅСѓР» РїРµСЂРµРЅР°РїСЂР°РІР»РµРЅРёРµ, РЅРѕ РЅРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РІРµСЂС€РёС‚СЊ Р·Р°РіСЂСѓР·РєСѓ."), 0xFFFF00)
+        end
     end
 end
 
--- Отрисовка окна
+
+
+
+
+
+-- РћС‚СЂРёСЃРѕРІРєР° РѕРєРЅР°
 imgui.OnFrame(
     function() return renderWindow[0] end,
     function()
-        -- Установка позиции и размера окна
+        -- РЈСЃС‚Р°РЅРѕРІРєР° РїРѕР·РёС†РёРё Рё СЂР°Р·РјРµСЂР° РѕРєРЅР°
         imgui.SetNextWindowPos(imgui.ImVec2(sizeX / 2, sizeY / 2), imgui.Cond.FirstUseEver, imgui.ImVec2(0.5, 0.5))
         imgui.SetNextWindowSize(imgui.ImVec2(400, 200), imgui.Cond.FirstUseEver)
 
-        -- Начало окна
-        imgui.Begin(u8"Меню обновлений", renderWindow)
+        -- РќР°С‡Р°Р»Рѕ РѕРєРЅР°
+        imgui.Begin(u8"РњРµРЅСЋ РѕР±РЅРѕРІР»РµРЅРёР№", renderWindow)
 
-        imgui.Text(u8"Система проверки обновлений")
+        imgui.Text(u8"РЎРёСЃС‚РµРјР° РїСЂРѕРІРµСЂРєРё РѕР±РЅРѕРІР»РµРЅРёР№")
         imgui.Separator()
 
-        -- Кнопка проверки обновлений
-        if imgui.Button(u8"Проверить обновления") then
-            safeStrCopy(updateText, "Проверка обновлений...")
+        -- РљРЅРѕРїРєР° РїСЂРѕРІРµСЂРєРё РѕР±РЅРѕРІР»РµРЅРёР№
+        if imgui.Button(u8"РџСЂРѕРІРµСЂРёС‚СЊ РѕР±РЅРѕРІР»РµРЅРёСЏ") then
+            safeStrCopy(updateText, "РџСЂРѕРІРµСЂРєР° РѕР±РЅРѕРІР»РµРЅРёР№...")
             checkVersion()
         end
 
-        -- Текст статуса обновления
+        -- РўРµРєСЃС‚ СЃС‚Р°С‚СѓСЃР° РѕР±РЅРѕРІР»РµРЅРёСЏ
         imgui.Text(str(updateText))
 
-        -- Кнопка "Обновить"
+        -- РљРЅРѕРїРєР° "РћР±РЅРѕРІРёС‚СЊ"
         if updateAvailable[0] then
-            if imgui.Button(u8"Обновить") then
-                safeStrCopy(updateText, "Загрузка обновления...")
+            if imgui.Button(u8"РћР±РЅРѕРІРёС‚СЊ") then
+                safeStrCopy(updateText, "Р—Р°РіСЂСѓР·РєР° РѕР±РЅРѕРІР»РµРЅРёСЏ...")
                 downloadUpdate()
             end
         end
 
-        imgui.End() -- Конец окна
+        imgui.End() -- РљРѕРЅРµС† РѕРєРЅР°
     end
 )
 
--- Основной цикл
+-- РћСЃРЅРѕРІРЅРѕР№ С†РёРєР»
 function main()
-    -- Регистрация обработчика событий
+    -- Р РµРіРёСЃС‚СЂР°С†РёСЏ РѕР±СЂР°Р±РѕС‚С‡РёРєР° СЃРѕР±С‹С‚РёР№
     addEventHandler('onWindowMessage', function(msg, wparam, lparam)
         if msg == wm.WM_KEYDOWN or msg == wm.WM_SYSKEYDOWN then
-            if wparam == vkeys.VK_X then -- Переключение окна по клавише X
+            if wparam == vkeys.VK_X then -- РџРµСЂРµРєР»СЋС‡РµРЅРёРµ РѕРєРЅР° РїРѕ РєР»Р°РІРёС€Рµ X
                 renderWindow[0] = not renderWindow[0]
             end
         end
     end)
 
     sampRegisterChatCommand("testmenu", function()
-        renderWindow[0] = not renderWindow[0] -- Открываем/закрываем меню по команде
+        renderWindow[0] = not renderWindow[0] -- РћС‚РєСЂС‹РІР°РµРј/Р·Р°РєСЂС‹РІР°РµРј РјРµРЅСЋ РїРѕ РєРѕРјР°РЅРґРµ
     end)
 
-    sampAddChatMessage("[Скрипт] Команда /testmenu успешно зарегистрирована!", -1)
+    sampAddChatMessage("[РЎРєСЂРёРїС‚] РљРѕРјР°РЅРґР° /testmenu СѓСЃРїРµС€РЅРѕ Р·Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°РЅР°!", -1)
 
-    wait(-1) -- Бесконечное ожидание
+    wait(-1) -- Р‘РµСЃРєРѕРЅРµС‡РЅРѕРµ РѕР¶РёРґР°РЅРёРµ
 end
